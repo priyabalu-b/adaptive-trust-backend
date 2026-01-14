@@ -1,4 +1,5 @@
 import datetime
+import os
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
@@ -50,4 +51,5 @@ def history():
         return "No history available"
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG","False") =="True"
+    app.run(host="0.0.0.0",port=5000,debug=debug_mode)
