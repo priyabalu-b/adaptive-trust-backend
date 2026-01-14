@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cyber Trust Analysis System</title>
+
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  background:#04060a;
+  overflow:hidden;
+  font-family:Segoe UI, system-ui, sans-serif;
+  color:#e6faff;
+}
+
+/* ===== TOP BAR ===== */
+.header{
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:52px;
+  background:linear-gradient(180deg,#0d1220,#070a12);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 14px;
+  font-size:15px;
+  z-index:3;
+  box-shadow:0 2px 12px rgba(0,0,0,.8);
+}
+
+.header span{
+  color:#00eaff;
+  font-weight:600;
+}
+
+/* ===== BACKGROUND ===== */
+canvas{
+  position:absolute;
+  inset:0;
+  z-index:0;
+}
+
+/* ===== CENTER CARD ===== */
+.hud-wrap{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  z-index:2;
+}
+
+.hud{
+  width:340px;
+  padding:18px;
+  border-radius:14px;
+  background:rgba(0,0,0,.7);
+  backdrop-filter:blur(14px);
+  border:1px solid rgba(0,220,255,.4);
+  box-shadow:0 0 50px rgba(0,200,255,.35);
+}
+
+.hud h3{
+  margin:0 0 10px;
+  text-align:center;
+  font-weight:600;
+  letter-spacing:1px;
+  background:linear-gradient(90deg,#00eaff,#ff9a2e);
+  background-clip: text;
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+.sub{
+  text-align:center;
+  font-size:11px;
+  opacity:.7;
+  margin-bottom:10px;
+}
+
+.hud input{
+  width:100%;
+  padding:9px 10px;
+  border-radius:8px;
+  border:none;
+  outline:none;
+  background:#0b1222;
+  color:#00eaff;
+  box-shadow:inset 0 0 10px rgba(0,200,255,.4);
+}
+
+.buttons{
+  display:flex;
+  gap:6px;
+  margin-top:10px;
+}
+
+button{
+  flex:1;
+  padding:7px;
+  border:none;
+  border-radius:6px;
+  background:linear-gradient(135deg,#00eaff,#ff9a2e);
+  font-size:12px;
+  font-weight:700;
+  color:#000;
+  cursor:pointer;
+}
+
+#result{
+  margin-top:12px;
+  font-size:12px;
+  line-height:1.4;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <span>CYBER TRUST MONITOR</span>
+  <span>STATUS: ACTIVE</span>
+</div>
+
+<canvas id="bg"></canvas>
+
+<div class="hud-wrap">
+  <div class="hud">
+    <h3>URL Threat Analysis</h3>
+    <div class="sub">Packet Inspection • Heuristic Scan</div>
+
+    <input id="urlInput" placeholder="Enter website URL">
+
+    <div class="buttons">
+      <button onclick="analyzeOnce()">SCAN</button>
+      <button onclick="startAuto()">AUTO</button>
+      <button onclick="stopAuto()">STOP</button>
+    </div>
+
+    <div id="result">Waiting for input…</div>
+  </div>
+</div>
+
+<script>
+/* ===== BACKGROUND ANIMATION ===== */
+const canvas = document.getElementById("bg");
+const ctx = canvas.getContext("2d");
+let w,h;
+function resize(){w=canvas.width=innerWidth;h=canvas.height=innerHeight;}
+window.onresize=resize;resize();
+
+const fontSize=14;
+let cols=Math.floor(w/fontSize);
+let drops=Array(cols).fill(0);
+
+function draw(){
+  ctx.fillStyle="rgba(4,6,10,0.35)";
+  ctx.fillRect(0,0,w,h);
+  ctx.font=fontSize+"px monospace";
+  for(let i=0;i<drops.length;i++){
+    const t=Math.random()>0.5?"1":"0";
+    ctx.fillStyle=Math.random()>0.98?"#ff9a2e":"#00eaff";
+    ctx.fillText(t,i*fontSize,drops[i]*fontSize);
+    if(drops[i]*fontSize>h && Math.random()>0.97)drops[i]=0;
+    drops[i]++;
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+
+/* ===== ANALYSIS LOGIC ===== */
+let intervalId=null;
+
+function analyzeOnce(){
+  const url=document.getElementById("urlInput").value.trim();
+  const box=document.getElementById("result");
+
+  if(!url){
+    box.innerHTML="<span style='color:red'>Enter a URL</span>";
+    return;
+  }
+
+  fetch("/analyze",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({url:url})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    const trust=d.trust_score ?? "N/A";
+    const risk=d.risk_level ?? "UNKNOWN";
+    const reasons=Array.isArray(d.reasons)?d.reasons:[];
+
+    let out=`<b>Trust:</b> ${trust}<br><b>Risk:</b> ${risk}<br><br>`;
+    if(reasons.length){
+      out+="<b>Reasons:</b><br>";
+      reasons.forEach(r=>out+="• "+r+"<br>");
+    }else{
+      out+="No specific risk detected";
+    }
+
+    box.innerHTML=out;
+
+    if(risk==="DANGEROUS"){
+      alert("⚠️ Dangerous website detected.\nAuto scan stopped.");
+      stopAuto();
+    }
+  })
+  .catch(()=>{
+    box.innerHTML="<span style='color:red'>Backend not reachable</span>";
+  });
+}
+
+function startAuto(){
+  if(intervalId) return;
+  analyzeOnce();
+  intervalId=setInterval(analyzeOnce,4000);
+}
+
+function stopAuto(){
+  clearInterval(intervalId);
+  intervalId=null;
+}
+</script>
+
+</body>
+</html>
